@@ -43,14 +43,20 @@ class jhonnies():
             print(f"Wrong input: len(x)={len(x)}, expected {self.in_len}")
             raise RuntimeError
 
-        outI = x @ self.WI
+        outI = 0
         outA = 0
         if self.assets > 0:
             outA = x @ self.WA
             outA = outA/np.linalg.norm(outA)
-        outI = outI/np.linalg.norm(outI)
+        
+        if self.liquidity > 0:
+            outI = x @ self.WI
+            outI = outI/np.linalg.norm(outI)
 
         invest_decision = self.invest_range[np.unravel_index(np.argmax(outI, axis=None), outI.shape)]
         sale_decision = self.sales_range[np.unravel_index(np.argmax(outA, axis=None), outA.shape)]
 
-        return invest_decision, sale_decision
+        capital_to_invest = np.floor(self.liquidity*invest_decision)
+        assets_to_sell = np.floor(self.assets*sale_decision)
+
+        return capital_to_invest, assets_to_sell
