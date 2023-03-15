@@ -4,8 +4,9 @@ import numpy as np
 class world():
 
     def __init__(self, world_population:int, input_l:int, invest_disc:int, sales_disc:int,
-                 start_money_loc=100, start_money_scale=10, cost_loc=60, epsilon=1, beta=10,
-                 delta=20, income_scaling=5, noise_scale=1.5) -> None:
+                 simulation_len:int, N_episodes:int, start_money_loc=100, start_money_scale=10,
+                 cost_loc=60, epsilon=1, beta=10, delta=20, income_scaling=5, noise_scale=1.5,
+                 top_percent = 0.15) -> None:
         '''
         Stuff to do:
         - initialize the population with:
@@ -16,6 +17,7 @@ class world():
         '''
         # PEOPLE INIT
         self.peoples = []
+        self.world_population = world_population
         for _ in range(world_population):
             money = int(np.random.normal(loc=start_money_loc, scale=start_money_scale))
             # making sure that the cost of living is smaller than the initial money they have
@@ -27,6 +29,8 @@ class world():
         
         # PARS INIT
         self.input_len = input_l
+        self.invest_disc = invest_disc
+        self.sales_disc = sales_disc
         self.epsilon = epsilon
         self.beta = beta
         self.delta = delta
@@ -36,6 +40,9 @@ class world():
         self.bought = 0
         self.previous_noise = 0
         self.noise_scale = noise_scale
+        self.percent = top_percent
+        self.simul_len = simulation_len
+        self.eps = N_episodes
     
     def update_prices(self):
         '''
@@ -96,11 +103,92 @@ class world():
         
     def evolve(self):
         '''
-        Crucial point of everything
+        For now is extremely non-optimized
         '''
-        pass
+        combined_wealth = np.argsort([p.liquidity+p.assets*self.asset_price for p in self.peoples])
+        liquidity = np.argsort([p.liquidity for p in self.peoples])
+        assets = np.argsort([p.assets for p in self.peoples])
+
+        keep = np.floor(len(self.peoples)*self.percent)
+        best_combined = self.peoples[combined_wealth[:keep]]
+        best_liquidity = self.peoples[liquidity[:keep]]
+        best_assets = self.peoples[assets[:keep]]
+
+
+        evol_choices = [0,1,2]
+
+        new_people = best_combined.extend(best_liquidity.extend(best_assets))
+
+        for _ in range(self.world_population-len(new_people)):
+            # choose random parents from the three groups
+            parents = np.random.choice(evol_choices, size=2, replace=True)
+            if parents[0] == 0:
+                parent1 = best_combined[np.random.randint(0,high=len(best_combined))]
+            elif parents[0] == 1:
+                parent1 = best_liquidity[np.random.randint(0,high=len(best_liquidity))]
+            elif parents[0] == 2:
+                parent1 = best_assets[np.random.randint(0,high=len(best_assets))]
+            
+            if parents[1] == 0:
+                parent2 = best_combined[np.random.randint(0,high=len(best_combined))]
+            elif parents[1] == 1:
+                parent2 = best_liquidity[np.random.randint(0,high=len(best_liquidity))]
+            elif parents[1] == 2:
+                parent2 = best_assets[np.random.randint(0,high=len(best_assets))]
+            
+            newWI = np.zeros(parent1.WI.shape)
+            newWA = np.zeros(parent1.WA.shape)
+            
+            for i in range(parent1.WI.shape[0]):
+                for j in range(parent1.WI.shape[1]):
+                    r = np.random.rand()
+                    mutation = np.random.rand()
+                    if r < 0.5:
+                        if mutation < 0.01:
+                            newWI[i,j] = parent1.WI[i,j] + (np.random.rand()*2 - 1)/20
+                        else:
+                            newWI[i,j] = parent1.WI[i,j]
+                    else:
+                        if mutation < 0.01:
+                            newWI[i,j] = parent2.WI[i,j] + (np.random.rand()*2 - 1)/20
+                        else:
+                            newWI[i,j] = parent2.WI[i,j]
+            
+            for i in range(parent1.WA.shape[0]):
+                for j in range(parent1.WA.shape[1]):
+                    r = np.random.rand()
+                    mutation = np.random.rand()
+                    if r < 0.5:
+                        if mutation < 0.01:
+                            newWA[i,j] = parent1.WA[i,j] + (np.random.rand()*2 - 1)/20
+                        else:
+                            newWA[i,j] = parent1.WA[i,j]
+                    else:
+                        if mutation < 0.01:
+                            newWA[i,j] = parent2.WA[i,j] + (np.random.rand()*2 - 1)/20
+                        else:
+                            newWA[i,j] = parent2.WA[i,j]
+            
+            new_jhon = jhonnies(li=self.input_len, loi=self.invest_disc, loa=self.sales_disc,
+                                 M=int((parent1.start_liquidity+parent2.start_liquidity)/2), C=0)
+            new_jhon.__setattr__(newWI, newWA)
+            new_people.append(new_jhon)
+
+        self.peoples = new_people
+        if len(self.peoples) != self.world_population:
+            print(f"The new people are a different number from the start, something wrong: new={len(self.peoples)}-->stating={self.world_population}")
+                
+
+    def reset_people(self):
+        for p in self.peoples:
+            p.reset_attr()
+                    
     
     def run_world(self):
-        self.agents_step(self.get_input())
-        self.update_prices()
-        self.evolve()
+
+        for e in range(self.eps):
+            for t in range(self.simul_len):
+                self.agents_step(self.get_input())
+                self.update_prices()
+            self.evolve()
+            self.reset_people()

@@ -25,8 +25,18 @@ class jhonnies():
         self.WI = np.random.normal(size=(self.in_len, self.outI_len))
         self.WA = np.random.normal(size=(self.in_len, self.outA_len))
 
+        self.start_liquidity = M
         self.liquidity = M
         self.cost_of_living = C
+        self.assets = 0
+    
+    def __setattr__(self, WI, WA) -> None:
+        self.WI = WI
+        self.WA = WA
+    
+
+    def reset_attr(self):
+        self.liquidity = self.start_liquidity
         self.assets = 0
     
 
@@ -60,3 +70,4 @@ class jhonnies():
         assets_to_sell = np.floor(self.assets*sale_decision)
 
         return capital_to_invest, assets_to_sell
+
