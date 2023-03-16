@@ -37,6 +37,7 @@ class world():
         self.epsilon = epsilon
         self.beta = beta
         self.delta = delta
+        self.start_price = start_money_loc//10
         self.asset_price = start_money_loc//10
         self.income_scale = income_scaling
         self.sold = 0
@@ -46,12 +47,15 @@ class world():
         self.percent = top_percent
         self.simul_len = simulation_len
         self.eps = N_episodes
+        self.removed_people = 0
 
         # SAVING PARS
         self.noises = np.zeros((N_episodes, simulation_len))
         self.prices = np.zeros((N_episodes, simulation_len))
         self.general_liquidity = np.zeros((N_episodes, simulation_len))
         self.general_assets = np.zeros((N_episodes, simulation_len))
+        self.avg_buying = np.zeros((N_episodes, simulation_len))
+        self.avg_selling = np.zeros((N_episodes, simulation_len))
     
     def update_prices(self):
         '''
@@ -71,7 +75,7 @@ class world():
                 self.asset_price -= self.epsilon/self.beta
     
 
-    def agents_step(self, x):
+    def agents_step(self, x, t, e):
         '''
         Get actions and update liquidity/assets
         '''
@@ -86,11 +90,14 @@ class world():
         for p in self.peoples:
             # if the agent has no money and no assets he's out
             if p.liquidity == 0 and p.assets == 0:
-                print("Very poor guy removed")
+                #print("Very poor guy removed")
+                self.removed_people += 1
                 self.peoples = self.peoples[self.peoples != p]
                 continue
             # otherwise it can buy and/or sell things
             inv, sale = p.action(x)
+            self.avg_buying[e,t] += inv
+            self.avg_selling[e,t] += sale
             # possibly buy stocks at current price and decrease its liquidity
             stocks = inv//self.asset_price
             p.assets += stocks
@@ -100,6 +107,9 @@ class world():
             p.liquidity += self.asset_price*sale
             p.assets -= sale
             self.sold += sale
+        
+        self.avg_buying[e,t] /= len(self.peoples)
+        self.avg_selling[e,t] /= len(self.peoples)
     
     def get_input(self, t, e):
         x = np.zeros(self.input_len)
@@ -194,19 +204,25 @@ class world():
             print(f"The new people are a different number from the start, something wrong: new={len(self.peoples)}-->stating={self.world_population}")
                 
 
-    def reset_people(self):
+    def reset_world(self):
         for p in self.peoples:
             p.reset_attr()
+        
+        self.asset_price = self.start_price
+        self.previous_noise = 0
+        self.removed_people = 0
                     
     
     def run_world(self):
 
         for e in range(self.eps):
+            print(f"Episode {e}")
             for t in range(self.simul_len):
-                self.agents_step(self.get_input(t=t, e=e))
+                self.agents_step(self.get_input(t=t, e=e), t=t, e=e)
                 self.update_prices()
+            print(f"Removed {self.removed_people} people")
             self.evolve()
-            self.reset_people()
+            self.reset_world()
     
 
     def show_data(self):
@@ -231,6 +247,19 @@ class world():
             ax2 = ax[e].twinx()
             ax2.plot(self.general_assets[e,:], color='peru')
             ax2.set_ylabel("Assets", color='peru')
+
+        
+        plt.show()
+
+        fig, ax = plt.subplots(self.eps,1)
+
+        for e in range(self.eps):
+            ax[e].plot(self.avg_buying[e,:], color='seagreen')
+            ax[e].set_ylabel("Buy", color='seagreen')
+
+            ax2 = ax[e].twinx()
+            ax2.plot(self.avg_selling[e,:], color='navy')
+            ax2.set_ylabel("Sell", color='navy')
 
         
         plt.show()
