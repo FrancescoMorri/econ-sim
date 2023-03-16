@@ -30,7 +30,7 @@ class jhonnies():
         self.cost_of_living = C
         self.assets = 0
     
-    def __setattr__(self, WI, WA) -> None:
+    def set_matrix(self, WI, WA) -> None:
         self.WI = WI
         self.WA = WA
     
@@ -55,19 +55,21 @@ class jhonnies():
 
         outI = 0
         outA = 0
+        sale_decision = 0
+        invest_decision = 0
         if self.assets > 0:
             outA = x @ self.WA
             outA = outA/np.linalg.norm(outA)
+            sale_decision = self.sales_range[np.unravel_index(np.argmax(outA, axis=None), outA.shape)]
         
         if self.liquidity > 0:
             outI = x @ self.WI
             outI = outI/np.linalg.norm(outI)
+            invest_decision = self.invest_range[np.unravel_index(np.argmax(outI, axis=None), outI.shape)]
 
-        invest_decision = self.invest_range[np.unravel_index(np.argmax(outI, axis=None), outI.shape)]
-        sale_decision = self.sales_range[np.unravel_index(np.argmax(outA, axis=None), outA.shape)]
-
-        capital_to_invest = np.floor(self.liquidity*invest_decision)
-        assets_to_sell = np.floor(self.assets*sale_decision)
+        
+        capital_to_invest = int(self.liquidity*invest_decision)
+        assets_to_sell = int(self.assets*sale_decision)
 
         return capital_to_invest, assets_to_sell
 

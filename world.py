@@ -1,5 +1,7 @@
 from agents import jhonnies
 import numpy as np
+import matplotlib.pyplot as plt
+plt.style.use('ggplot')
 
 class world():
 
@@ -16,7 +18,7 @@ class world():
         - initialize parameters for price update and noise signal
         '''
         # PEOPLE INIT
-        self.peoples = []
+        self.peoples = None
         self.world_population = world_population
         for _ in range(world_population):
             money = int(np.random.normal(loc=start_money_loc, scale=start_money_scale))
@@ -24,8 +26,9 @@ class world():
             cost_of_living = 0
             #while cost_of_living > money:
             #    cost_of_living = int(money - np.random.normal(loc=(start_money_loc-cost_loc), scale=start_money_scale))
-            
-            self.peoples.append(jhonnies(li=input_l, loi=invest_disc, loa=sales_disc, M=money, C=cost_of_living))
+            if self.peoples is None:
+                self.peoples = np.array(jhonnies(li=input_l, loi=invest_disc, loa=sales_disc, M=money, C=cost_of_living))
+            self.peoples = np.append(self.peoples, jhonnies(li=input_l, loi=invest_disc, loa=sales_disc, M=money, C=cost_of_living))
         
         # PARS INIT
         self.input_len = input_l
@@ -43,6 +46,12 @@ class world():
         self.percent = top_percent
         self.simul_len = simulation_len
         self.eps = N_episodes
+
+        # SAVING PARS
+        self.noises = np.zeros((N_episodes, simulation_len))
+        self.prices = np.zeros((N_episodes, simulation_len))
+        self.general_liquidity = np.zeros((N_episodes, simulation_len))
+        self.general_assets = np.zeros((N_episodes, simulation_len))
     
     def update_prices(self):
         '''
@@ -78,7 +87,7 @@ class world():
             # if the agent has no money and no assets he's out
             if p.liquidity == 0 and p.assets == 0:
                 print("Very poor guy removed")
-                self.peoples.remove(p)
+                self.peoples = self.peoples[self.peoples != p]
                 continue
             # otherwise it can buy and/or sell things
             inv, sale = p.action(x)
@@ -92,12 +101,16 @@ class world():
             p.assets -= sale
             self.sold += sale
     
-    def get_input(self):
+    def get_input(self, t, e):
         x = np.zeros(self.input_len)
         x[0] = self.asset_price
         x[1] = self.previous_noise + (np.random.rand()*2 - 1)*self.noise_scale
         self.previous_noise = x[1]
-        x[2] = np.mean([p.liquidity for p in self.people])
+        x[2] = np.mean([p.liquidity for p in self.peoples])
+        self.noises[e,t] = x[1]
+        self.prices[e,t] = x[0]
+        self.general_liquidity[e,t] = x[2]
+        self.general_assets[e,t] = np.mean([p.assets for p in self.peoples])
 
         return x
         
@@ -108,8 +121,10 @@ class world():
         combined_wealth = np.argsort([p.liquidity+p.assets*self.asset_price for p in self.peoples])
         liquidity = np.argsort([p.liquidity for p in self.peoples])
         assets = np.argsort([p.assets for p in self.peoples])
+        
 
-        keep = np.floor(len(self.peoples)*self.percent)
+        keep = int(len(self.peoples)*self.percent)
+        
         best_combined = self.peoples[combined_wealth[:keep]]
         best_liquidity = self.peoples[liquidity[:keep]]
         best_assets = self.peoples[assets[:keep]]
@@ -117,7 +132,7 @@ class world():
 
         evol_choices = [0,1,2]
 
-        new_people = best_combined.extend(best_liquidity.extend(best_assets))
+        new_people = np.concatenate((best_combined, best_liquidity, best_assets))
 
         for _ in range(self.world_population-len(new_people)):
             # choose random parents from the three groups
@@ -171,8 +186,8 @@ class world():
             
             new_jhon = jhonnies(li=self.input_len, loi=self.invest_disc, loa=self.sales_disc,
                                  M=int((parent1.start_liquidity+parent2.start_liquidity)/2), C=0)
-            new_jhon.__setattr__(newWI, newWA)
-            new_people.append(new_jhon)
+            new_jhon.set_matrix(newWI, newWA)
+            new_people = np.append(new_people, new_jhon)
 
         self.peoples = new_people
         if len(self.peoples) != self.world_population:
@@ -188,7 +203,34 @@ class world():
 
         for e in range(self.eps):
             for t in range(self.simul_len):
-                self.agents_step(self.get_input())
+                self.agents_step(self.get_input(t=t, e=e))
                 self.update_prices()
             self.evolve()
             self.reset_people()
+    
+
+    def show_data(self):
+        fig, ax = plt.subplots(self.eps,1)
+
+        for e in range(self.eps):
+            ax[e].plot(self.prices[e,:], color='firebrick')
+            ax[e].set_ylabel("Price", color='firebrick')
+
+            ax2 = ax[e].twinx()
+            ax2.plot(self.noises[e,:], color='teal')
+            ax2.set_ylabel("Noise", color='teal')
+        
+        plt.show()
+
+        fig, ax = plt.subplots(self.eps,1)
+
+        for e in range(self.eps):
+            ax[e].plot(self.general_liquidity[e,:], color='violet')
+            ax[e].set_ylabel("Liquidity", color='violet')
+
+            ax2 = ax[e].twinx()
+            ax2.plot(self.general_assets[e,:], color='peru')
+            ax2.set_ylabel("Assets", color='peru')
+
+        
+        plt.show()
