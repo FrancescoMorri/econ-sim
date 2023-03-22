@@ -3,7 +3,7 @@ import numpy as np
 
 class jhonnies():
 
-    def __init__(self, li, loi, loa, M, C) -> None:
+    def __init__(self, li, loi, loa, M, C, age=0) -> None:
         '''
         Input:
         - li = length of expected input
@@ -29,6 +29,7 @@ class jhonnies():
         self.liquidity = M
         self.cost_of_living = C
         self.assets = 0
+        self.age = age
     
     def set_matrix(self, WI, WA) -> None:
         self.WI = WI
@@ -72,4 +73,3 @@ class jhonnies():
         assets_to_sell = int(self.assets*sale_decision)
 
         return capital_to_invest, assets_to_sell
-

@@ -1,7 +1,6 @@
 from agents import jhonnies
 import numpy as np
-import matplotlib.pyplot as plt
-plt.style.use('ggplot')
+import pickle as pk
 
 class world():
 
@@ -56,6 +55,8 @@ class world():
         self.general_assets = np.zeros((N_episodes, simulation_len))
         self.avg_buying = np.zeros((N_episodes, simulation_len))
         self.avg_selling = np.zeros((N_episodes, simulation_len))
+        self.avg_age = []
+        self.hist_removed_people = []
     
     def update_prices(self):
         '''
@@ -65,14 +66,17 @@ class world():
         - else -> `price +/-= epsilon/beta` with 50/50 chance
         '''
         if self.sold > self.bought + self.delta:
-            self.asset_price += self.epsilon
-        elif self.sold < self.bought - self.delta:
             self.asset_price -= self.epsilon
+        elif self.sold < self.bought - self.delta:
+            self.asset_price += self.epsilon
         else:
             if np.random.rand() < 0.5:
                 self.asset_price += self.epsilon/self.beta
             else:
                 self.asset_price -= self.epsilon/self.beta
+        
+        if self.asset_price <= 0:
+            self.asset_price = 1
     
 
     def agents_step(self, x, t, e):
@@ -131,6 +135,8 @@ class world():
         combined_wealth = np.argsort([p.liquidity+p.assets*self.asset_price for p in self.peoples])
         liquidity = np.argsort([p.liquidity for p in self.peoples])
         assets = np.argsort([p.assets for p in self.peoples])
+        for p in self.peoples:
+            p.age += 1
         
 
         keep = int(len(self.peoples)*self.percent)
@@ -208,58 +214,43 @@ class world():
         for p in self.peoples:
             p.reset_attr()
         
+        self.avg_age.append(np.mean([p.age for p in self.peoples]))
+        self.hist_removed_people.append(self.removed_people)
+        
         self.asset_price = self.start_price
         self.previous_noise = 0
         self.removed_people = 0
                     
     
-    def run_world(self):
+    def save_best_ag(self, eps, PATH):
+
+        combined_wealth = np.argsort([p.liquidity+p.assets*self.asset_price for p in self.peoples])
+        top = self.peoples[combined_wealth[0]]
+        with open(PATH+f"bestAG-eps{eps}", 'wb') as file:
+            pk.dump(top, file, pk.HIGHEST_PROTOCOL)
+
+    def run_world(self, PATH):
 
         for e in range(self.eps):
             print(f"Episode {e}")
             for t in range(self.simul_len):
                 self.agents_step(self.get_input(t=t, e=e), t=t, e=e)
                 self.update_prices()
-            print(f"Removed {self.removed_people} people")
+            
+            if (e+1)%10 == 0:
+                print(f"Removed {self.removed_people} people")
+                print("Saving best agent (assets+liquidity)...")
+                self.save_best_ag(e, "data/agents/"+PATH)
             self.evolve()
             self.reset_world()
     
 
-    def show_data(self):
-        fig, ax = plt.subplots(self.eps,1)
-
-        for e in range(self.eps):
-            ax[e].plot(self.prices[e,:], color='firebrick')
-            ax[e].set_ylabel("Price", color='firebrick')
-
-            ax2 = ax[e].twinx()
-            ax2.plot(self.noises[e,:], color='teal')
-            ax2.set_ylabel("Noise", color='teal')
-        
-        plt.show()
-
-        fig, ax = plt.subplots(self.eps,1)
-
-        for e in range(self.eps):
-            ax[e].plot(self.general_liquidity[e,:], color='violet')
-            ax[e].set_ylabel("Liquidity", color='violet')
-
-            ax2 = ax[e].twinx()
-            ax2.plot(self.general_assets[e,:], color='peru')
-            ax2.set_ylabel("Assets", color='peru')
-
-        
-        plt.show()
-
-        fig, ax = plt.subplots(self.eps,1)
-
-        for e in range(self.eps):
-            ax[e].plot(self.avg_buying[e,:], color='seagreen')
-            ax[e].set_ylabel("Buy", color='seagreen')
-
-            ax2 = ax[e].twinx()
-            ax2.plot(self.avg_selling[e,:], color='navy')
-            ax2.set_ylabel("Sell", color='navy')
-
-        
-        plt.show()
+    def save_data(self, PATH):
+        np.save(PATH+"noises",self.noises)
+        np.save(PATH+"prices",self.prices)
+        np.save(PATH+"liquidity",self.general_liquidity)
+        np.save(PATH+"assets",self.general_assets)
+        np.save(PATH+"buy",self.avg_buying)
+        np.save(PATH+"sell",self.avg_selling)
+        np.save(PATH+"age",self.avg_age)
+        np.save(PATH+"removed",self.hist_removed_people)
